@@ -73,7 +73,7 @@ custom_enemies := class(creative_device):
                 FortChar.Damage(9999.0)
  
     CreatureSpawned(Agent : agent): void =
-        if (Enabled):
+        if (Enabled?):
             if (FortChar := Agent.GetFortCharacter[], Enemy := EnemyArray[GetRandomInt(0, EnemyArray.Length - 1)]):
                 FortChar.SetMaxHealth(Enemy.Health)
                 FortChar.Hide()
@@ -84,9 +84,9 @@ custom_enemies := class(creative_device):
         var LastTransform : transform = FortChar.GetTransform()
         
         var CurrentProp : creative_prop = creative_prop{}
-        if (MaybeProp := SpawnProp(EnemyInfo.IdleBlue, LastTransform.Translation, LastTransform.Rotation)):
-            if (SpawnedProp := MaybeProp(0)?):
-                set CurrentProp = SpawnedProp
+        MaybeProp := SpawnProp(EnemyInfo.IdleBlue, LastTransform.Translation, LastTransform.Rotation)
+        if (SpawnedProp := MaybeProp(0)?):
+            set CurrentProp = SpawnedProp
 
         var CurrentState : MovementState = MovementState.Idle
         var LastState : MovementState = MovementState.Idle
@@ -95,7 +95,7 @@ custom_enemies := class(creative_device):
         loop:
             if (not FortChar.IsActive[]):
                 CurrentProp.Dispose()
-                var PropSpawned : ?creative_prop = SpawnProp(DiedAsset, LastTransform)
+                PropSpawned := SpawnProp(DiedAsset, LastTransform)
                 
                 if (PropThatNeedToDelete := PropSpawned(0)?):
                     Sleep(TimeToDespawnDied)
@@ -111,13 +111,13 @@ custom_enemies := class(creative_device):
                             if (LoopFortChar.IsActive[]):
                                 set PlayerNearby = true
  
-                if (PlayerNearby):
+                if (PlayerNearby?):
                     set CurrentState = MovementState.Attacking
                     CurrentProp.Dispose()
                     
-                    if (MaybeAttackProp := SpawnProp(EnemyInfo.AttackBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)):
-                        if (AttackProp := MaybeAttackProp(0)?):
-                            set CurrentProp = AttackProp
+                    MaybeAttackProp := SpawnProp(EnemyInfo.AttackBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)
+                    if (AttackProp := MaybeAttackProp(0)?):
+                        set CurrentProp = AttackProp
 
                     Sleep(EnemyInfo.AttackWindupTime)
                     for (Player : PlaySpace.GetPlayers()):
@@ -125,13 +125,13 @@ custom_enemies := class(creative_device):
                             if (Distance(FortChar.GetTransform().Translation, LoopFortChar.GetTransform().Translation) < 120.0):
                                 LoopFortChar.Damage(EnemyInfo.Damage)
                 
-                if (not PlayerNearby):
+                if (not PlayerNearby?):
                     if (not CurrentState = MovementState.Idle):
                         set CurrentState = MovementState.Idle
                         CurrentProp.Dispose()
                         
-                        if (MaybeIdleProp := SpawnProp(EnemyInfo.IdleBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)):
-                            if (IdleProp := MaybeIdleProp(0)?):
+                        MaybeIdleProp := SpawnProp(EnemyInfo.IdleBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)
+                        if (IdleProp := MaybeIdleProp(0)?):
                                 set CurrentProp = IdleProp
             
             if (Distance(FortChar.GetTransform().Translation, LastTransform.Translation) > 0.0):
@@ -139,9 +139,9 @@ custom_enemies := class(creative_device):
                     set CurrentState = MovementState.Walking
                     CurrentProp.Dispose()
                     
-                    if (MaybeWalkProp := SpawnProp(EnemyInfo.WalkBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)):
-                        if (WalkProp := MaybeWalkProp(0)?):
-                            set CurrentProp = WalkProp
+                    MaybeWalkProp := SpawnProp(EnemyInfo.WalkBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)
+                    if (WalkProp := MaybeWalkProp(0)?):
+                        set CurrentProp = WalkProp
 
             set LastTransform = FortChar.GetTransform()
             CurrentProp.MoveTo(FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation, 0.1)
@@ -151,7 +151,7 @@ custom_enemies := class(creative_device):
         if (OutProp.TeleportTo[InProp.GetTransform().Translation, InProp.GetTransform().Rotation]):
             Sleep(0.0)
             if (InProp.TeleportTo[TempTransform.Translation, TempTransform.Rotation]):
-                {}
+                
  
     Enable(MaybeAgent : ?agent): void =
         set Enabled = true
