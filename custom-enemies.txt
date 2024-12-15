@@ -1,0 +1,160 @@
+using { /Fortnite.com/Devices }
+using { /Verse.org/Simulation }
+using { /UnrealEngine.com/Temporary/Diagnostics }
+using { /Fortnite.com/Characters }
+using { /UnrealEngine.com/Temporary/SpatialMath }
+using { /Fortnite.com/AI }
+using { /Verse.org/Random }
+
+MovementState := enum{Idle, Walking, Attacking}
+enemy_info_class := class<concrete>:
+
+    @editable 
+    IdleBlue : creative_prop_asset = DefaultCreativePropAsset
+
+    @editable 
+    WalkBlue : creative_prop_asset = DefaultCreativePropAsset
+
+    @editable 
+    AttackBlue : creative_prop_asset = DefaultCreativePropAsset
+
+    @editable 
+    Health : float = 1.0
+
+    @editable 
+    Damage : float = 0.0
+
+    @editable 
+    AttackWindupTime : float = 0.5
+
+    @editable 
+    AttackCooldownTime : float = 0.5
+ 
+custom_enemies := class(creative_device):
+
+    @editable 
+    ZombieSpawner : []creature_spawner_device = array{}
+
+    @editable 
+    EnableTrigger : trigger_device = trigger_device{}
+
+    @editable 
+    DisableTrigger : trigger_device = trigger_device{}
+
+    @editable 
+    var Enabled : logic = true
+
+    @editable 
+    var EnemyArray : []enemy_info_class = array{}
+
+    @editable 
+    DiedAsset : creative_prop_asset = DefaultCreativePropAsset
+
+    @editable 
+    TimeToDespawnDied : float = 5.0
+
+    OnBegin<override>()<suspends>:void=
+        EnableTrigger.TriggeredEvent.Subscribe(Enable)
+        DisableTrigger.TriggeredEvent.Subscribe(Disable)
+
+        for (Spawner : ZombieSpawner):
+            Spawner.SpawnedEvent.Subscribe(CreatureSpawned)  
+ 
+    TrackingDamage(FortChar : fort_character, MaxHealth : float)<suspends>: void =
+        var Health : float = MaxHealth
+
+        loop:
+            DamageStruct := FortChar.DamagedEvent().Await()
+            Print("Damaged by {DamageStruct.Amount}")
+            set Health -= DamageStruct.Amount
+
+            if (Health <= 0.0):
+                Print("Dead")
+                FortChar.Damage(9999.0)
+ 
+    CreatureSpawned(Agent : agent): void =
+        if (Enabled):
+            if (FortChar := Agent.GetFortCharacter[], Enemy := EnemyArray[GetRandomInt(0, EnemyArray.Length - 1)]):
+                FortChar.SetMaxHealth(Enemy.Health)
+                FortChar.Hide()
+                spawn{EnemyLoop(FortChar, Enemy)}
+ 
+    EnemyLoop(FortChar : fort_character, EnemyInfo : enemy_info_class)<suspends>: void =
+        spawn{TrackingDamage(FortChar, EnemyInfo.Health)}
+        var LastTransform : transform = FortChar.GetTransform()
+        
+        var CurrentProp : creative_prop = creative_prop{}
+        if (MaybeProp := SpawnProp(EnemyInfo.IdleBlue, LastTransform.Translation, LastTransform.Rotation)):
+            if (SpawnedProp := MaybeProp(0)?):
+                set CurrentProp = SpawnedProp
+
+        var CurrentState : MovementState = MovementState.Idle
+        var LastState : MovementState = MovementState.Idle
+        var WalkSpeed : float = 10.0
+ 
+        loop:
+            if (not FortChar.IsActive[]):
+                CurrentProp.Dispose()
+                var PropSpawned : ?creative_prop = SpawnProp(DiedAsset, LastTransform)
+                
+                if (PropThatNeedToDelete := PropSpawned(0)?):
+                    Sleep(TimeToDespawnDied)
+                    PropThatNeedToDelete.Dispose()
+                break
+
+            if (Distance(FortChar.GetTransform().Translation, LastTransform.Translation) = 0.0):
+                PlaySpace := GetPlayspace()
+                var PlayerNearby : logic = false
+                for (Player : PlaySpace.GetPlayers()):
+                    if (LoopFortChar := Player.GetFortCharacter[]):
+                        if (Distance(FortChar.GetTransform().Translation, LoopFortChar.GetTransform().Translation) < 120.0):
+                            if (LoopFortChar.IsActive[]):
+                                set PlayerNearby = true
+ 
+                if (PlayerNearby):
+                    set CurrentState = MovementState.Attacking
+                    CurrentProp.Dispose()
+                    
+                    if (MaybeAttackProp := SpawnProp(EnemyInfo.AttackBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)):
+                        if (AttackProp := MaybeAttackProp(0)?):
+                            set CurrentProp = AttackProp
+
+                    Sleep(EnemyInfo.AttackWindupTime)
+                    for (Player : PlaySpace.GetPlayers()):
+                        if (LoopFortChar := Player.GetFortCharacter[]):
+                            if (Distance(FortChar.GetTransform().Translation, LoopFortChar.GetTransform().Translation) < 120.0):
+                                LoopFortChar.Damage(EnemyInfo.Damage)
+                
+                if (not PlayerNearby):
+                    if (not CurrentState = MovementState.Idle):
+                        set CurrentState = MovementState.Idle
+                        CurrentProp.Dispose()
+                        
+                        if (MaybeIdleProp := SpawnProp(EnemyInfo.IdleBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)):
+                            if (IdleProp := MaybeIdleProp(0)?):
+                                set CurrentProp = IdleProp
+            
+            if (Distance(FortChar.GetTransform().Translation, LastTransform.Translation) > 0.0):
+                if (not CurrentState = MovementState.Walking):
+                    set CurrentState = MovementState.Walking
+                    CurrentProp.Dispose()
+                    
+                    if (MaybeWalkProp := SpawnProp(EnemyInfo.WalkBlue, FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation)):
+                        if (WalkProp := MaybeWalkProp(0)?):
+                            set CurrentProp = WalkProp
+
+            set LastTransform = FortChar.GetTransform()
+            CurrentProp.MoveTo(FortChar.GetTransform().Translation, FortChar.GetTransform().Rotation, 0.1)
+ 
+    (InProp : creative_prop).SwapProp(OutProp : creative_prop)<suspends>: void =
+        TempTransform := OutProp.GetTransform()
+        if (OutProp.TeleportTo[InProp.GetTransform().Translation, InProp.GetTransform().Rotation]):
+            Sleep(0.0)
+            if (InProp.TeleportTo[TempTransform.Translation, TempTransform.Rotation]):
+                {}
+ 
+    Enable(MaybeAgent : ?agent): void =
+        set Enabled = true
+ 
+    Disable(MaybeAgent : ?agent): void =
+        set Enabled = false
