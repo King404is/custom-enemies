@@ -1,0 +1,54 @@
+using { /Fortnite.com/Devices }
+using { /Verse.org/Simulation }
+
+piece_control_manager := class(creative_device):
+    # Editable arrays for locations and spawn pads
+    @editable
+    Locations : []vector3 = [] # Array of location points
+    
+    @editable
+    SpawnPads : []creative_device = [] # Array for Spawn Pads (Team 1 & 2)
+    
+    @editable
+    SpawnPadsTeam3 : []creative_device = [] # Array for Spawn Pads (Team 3)
+
+    # Editable single properties
+    @editable
+    RandomizeLocations : bool = false # Option to randomize locations
+    
+    @editable
+    TotalWins : int = 0 # Tracks total wins for players
+
+    @editable
+    StartButton : creative_device = creative_device{} # Button to start the game
+    
+    @editable
+    BarrierDropTimer : creative_device = creative_device{} # Timer for dropping the barrier
+
+    # Initialization and Logic
+    OnBegin<override>() : void =
+        # Log initialization
+        Log("Piece Control Manager Initialized")
+
+        # Example usage of randomization logic
+        if RandomizeLocations:
+            Log("Randomizing Locations...")
+            ShuffleLocations()
+
+    # Function to shuffle the locations array (if RandomizeLocations is true)
+    ShuffleLocations() : void =
+        Locations := RandomizeArray(Locations)
+
+    # Start the game logic
+    StartGame() : void =
+        Log("Game Started!")
+        StartButton.Activate()
+        BarrierDropTimer.Start()
+
+        # Place players at spawn pads based on teams
+        AssignPlayersToSpawnPads()
+
+    # Assign players to spawn pads
+    AssignPlayersToSpawnPads() : void =
+        # Placeholder for logic to distribute players across SpawnPads and SpawnPadsTeam3
+        Log("Assigning players to spawn pads...")
