@@ -1,0 +1,132 @@
+using { /Fortnite.com/Devices }
+using { /Verse.org/Simulation }
+using { /Verse.org/Core }
+
+boss_fight_manager := class(creative_device):
+    @editable
+    BossHealth : int = 2000 # Boss total health
+    @editable
+    PlayerDamage : int = 50 # Boss damage to players
+    @editable
+    SpecialAttackDamage : int = 100 # Damage from boss's special attack
+    @editable
+    FightDuration : int = 300 # Fight duration in seconds
+    @editable
+    PhaseTwoHealthThreshold : int = 1000 # Health threshold for phase 2
+    @editable
+    PhaseThreeHealthThreshold : int = 500 # Health threshold for phase 3
+    @editable
+    HealingZoneDevice : creative_device = creative_device{} # Device for healing zones
+    @editable
+    ReviveTimer : int = 15 # Time limit for reviving players (in seconds)
+    @editable
+    LootRewardDevice : creative_device = creative_device{} # Loot dropped after boss defeat
+    @editable
+    PowerUps : array<creative_device> = {} # Devices for player power-ups
+    @editable
+    BossHealthBar : creative_device = creative_device{} # Health bar for boss
+    @editable
+    BossVictoryEffect : creative_device = creative_device{} # Effect triggered when boss wins
+    @editable
+    VictoryEffect : creative_device = creative_device{} # Effect triggered when players win
+    @editable
+    FightTimerDevice : timer_device = timer_device{} # Timer for the fight
+
+    private CurrentBossHealth : int = 2000
+    private BossPhase : int = 1
+
+    OnBegin<override>() : void =
+        Log("Boss Fight Initialized")
+        CurrentBossHealth := BossHealth
+        StartFightTimer()
+        UpdateHealthBar()
+        SpawnBoss()
+
+    SpawnBoss() : void =
+        Log("Spawning the Boss")
+        Boss := SpawnCustomPlayer(vector3(0, 0, 0), "Boss Character")
+        BindPlayerInteractions()
+
+    StartFightTimer() : void =
+        Log("Starting the fight timer...")
+        FightTimerDevice.Start(FightDuration)
+        FightTimerDevice.OnTimerEnd().Subscribe(OnFightTimerEnd)
+
+    OnBossDamaged(damage : int, attacking_player : player) : void =
+        if CurrentBossHealth > 0:
+            CurrentBossHealth -= damage
+            Log("Boss damaged for {damage}. Remaining health: {CurrentBossHealth}")
+            UpdateHealthBar()
+
+            if CurrentBossHealth <= PhaseTwoHealthThreshold and BossPhase == 1:
+                EnterPhaseTwo()
+            elseif CurrentBossHealth <= PhaseThreeHealthThreshold and BossPhase == 2:
+                EnterPhaseThree()
+            elseif CurrentBossHealth <= 0:
+                HandleBossDefeat()
+
+    EnterPhaseTwo() : void =
+        BossPhase := 2
+        Log("Boss is now in Phase 2! Faster attacks!")
+        IncreaseBossAttackSpeed()
+        TriggerSpecialAttack()
+
+    EnterPhaseThree() : void =
+        BossPhase := 3
+        Log("Boss is now in Phase 3! Special attacks more frequent!")
+        TriggerSpecialAttack()
+        TriggerHealingZones()
+
+    IncreaseBossAttackSpeed() : void =
+        PlayerDamage += 20 # Increase damage
+        Log("Boss attack speed and damage increased.")
+
+    TriggerSpecialAttack() : void =
+        Log("Boss performing a special attack!")
+        BossSpecialAttackEffect.Activate()
+        ApplyAoEDamage(Boss.GetLocation(), 500)
+
+    TriggerHealingZones() : void =
+        Log("Activating healing zones...")
+        HealingZoneDevice.Activate()
+
+    OnPlayerCollideWithBoss(player : player) : void =
+        if player != none:
+            Log("Player {player.GetDisplayName()} hit by the Boss!")
+            DealDamageToPlayer(player)
+
+    DealDamageToPlayer(player : player) : void =
+        player.ApplyDamage(PlayerDamage)
+        Log("Player {player.GetDisplayName()} took {PlayerDamage} damage.")
+
+    HandleBossDefeat() : void =
+        Log("Boss has been defeated!")
+        TriggerVictoryEffect()
+        SpawnLootReward()
+        EndBossFight()
+
+    TriggerVictoryEffect() : void =
+        VictoryEffect.Activate()
+        Log("Players win!")
+
+    SpawnLootReward() : void =
+        Log("Spawning loot rewards...")
+        LootRewardDevice.Activate()
+
+    OnFightTimerEnd() : void =
+        if CurrentBossHealth > 0:
+            Log("Time's up! The Boss wins!")
+            TriggerBossVictoryEffect()
+            EndBossFight()
+
+    TriggerBossVictoryEffect() : void =
+        BossVictoryEffect.Activate()
+
+    RevivePlayer(fallen_player : player, reviver : player) : void =
+        Log("{reviver.GetDisplayName()} is reviving {fallen_player.GetDisplayName()}...")
+        fallen_player.Respawn()
+        Log("{fallen_player.GetDisplayName()} has been revived!")
+
+    UpdateHealthBar() : void =
+        BossHealthBar.SetValue(CurrentBossHealth)
+        Log("Boss Health Bar updated to {CurrentBossHealth}.")
