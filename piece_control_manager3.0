@@ -1,0 +1,122 @@
+using { /Fortnite.com/Devices }
+using { /Verse.org/Simulation }
+using { /Verse.org/Core }
+
+piece_control_manager := class(creative_device):
+    # Editable arrays for locations and spawn pads
+    @editable
+    Locations : []vector3 = [] # Array of location points
+
+    @editable
+    SpawnPads : []creative_device = [] # Spawn Pads for Team 1 & Team 2
+
+    @editable
+    SpawnPadsTeam3 : []creative_device = [] # Spawn Pads for Team 3
+
+    @editable
+    RandomizeLocations : bool = false # Option to randomize locations
+
+    @editable
+    TotalWins : int = 0 # Tracks total wins for players
+
+    @editable
+    StartButton : creative_device = creative_device{} # Button to start the game
+
+    @editable
+    BarrierDropTimer : creative_device = creative_device{} # Timer for barrier drop
+
+    # UI Devices (for dynamic win display)
+    @editable
+    WinDisplayDevice : creative_device = creative_device{} # Displays wins
+
+    # Private variables for managing players and teams
+    private TeamPlayerMap : map<int, []player> = {} # Team to player mapping
+    private WinningTeam : int = 0 # Track the current winning team
+
+    # Initialization logic
+    OnBegin<override>() : void =
+        Log("Piece Control Manager Initialized")
+        
+        # Randomize locations if enabled
+        if RandomizeLocations:
+            ShuffleLocations()
+
+        # Bind StartButton to StartGame
+        StartButton.OnInteractEvent().Subscribe(StartGame)
+
+        # Display the current total wins at the start
+        UpdateWinDisplay()
+
+    # Shuffle locations
+    ShuffleLocations() : void =
+        Locations := RandomizeArray(Locations)
+        Log("Locations shuffled.")
+
+    # Start the game
+    StartGame() : void =
+        Log("Game Started!")
+        BarrierDropTimer.Start()
+        AssignPlayersToTeams()
+        AssignPlayersToSpawnPads()
+
+    # Assign players dynamically to teams
+    AssignPlayersToTeams() : void =
+        Log("Assigning players to teams...")
+        for (player : GetPlayers()):
+            team := AssignTeam(player)
+            Log("Player assigned to Team {team}")
+
+    # Logic to assign a player to a team (based on balance)
+    AssignTeam(player : player) : int =
+        # Assign players to the team with the least members
+        min_team := GetTeamWithFewestPlayers()
+        TeamPlayerMap[min_team].Add(player)
+        return min_team
+
+    GetTeamWithFewestPlayers() : int =
+        min_team := 1
+        min_count := 999
+        for (team, players : TeamPlayerMap):
+            if players.Length() < min_count:
+                min_team := team
+                min_count := players.Length()
+        return min_team
+
+    # Assign players to spawn pads dynamically
+    AssignPlayersToSpawnPads() : void =
+        Log("Assigning players to spawn pads...")
+        for (team, players : TeamPlayerMap):
+            spawn_pads := if team == 3 then SpawnPadsTeam3 else SpawnPads
+            for (index, player : players):
+                if index < spawn_pads.Length():
+                    spawn_pads[index].EnableForPlayer(player)
+                    Log("Player assigned to spawn pad {index} for Team {team}")
+
+    # Track wins and update total
+    TrackWins(winning_team : int) : void =
+        Log("Team {winning_team} wins!")
+        WinningTeam := winning_team
+        TotalWins += 1
+        UpdateWinDisplay()
+
+        # End game if total wins reach 10
+        if TotalWins >= 10:
+            EndGame()
+
+    # Update the UI display with the current total wins
+    UpdateWinDisplay() : void =
+        WinDisplayDevice.SetText("Total Wins: {TotalWins}")
+
+    # End the game and reset devices
+    EndGame() : void =
+        Log("Game Ended! Total Wins: {TotalWins}")
+        ResetDevices()
+
+    # Reset devices to prepare for the next game
+    ResetDevices() : void =
+        for (pad : SpawnPads):
+            pad.Disable()
+        for (pad : SpawnPadsTeam3):
+            pad.Disable()
+        BarrierDropTimer.Reset()
+        Log("Devices reset. Ready for the next game.")
